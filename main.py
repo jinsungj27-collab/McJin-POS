@@ -1,6 +1,10 @@
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 MC_RED      = "#DA291C"
 MC_YELLOW   = "#FFC72C"
@@ -10,11 +14,18 @@ MC_LIGHT_BG = "#F5F5F5"
 MC_GRAY     = "#E0E0E0"
 MC_GREEN    = "#264F36"
 
-CREDENTIALS = {
-    "admin":    "admin123",
-    "cashier1": "pass1",
-    "cashier2": "pass2",
-}
+def _load_credentials():
+    raw = os.getenv("POS_CREDENTIALS", "")
+    creds = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if ":" in pair:
+            user, pwd = pair.split(":", 1)
+            creds[user.strip()] = pwd.strip()
+    return creds
+
+
+CREDENTIALS = _load_credentials()
 
 MENU_ITEMS = {
     "B01": ("Big Mac",                   "Burgers",   5.99),
@@ -75,17 +86,6 @@ def get_highest_sale(sales_log):
     return max(sales_log, key=lambda r: r["total"])
 
 
-def make_mc_button(parent, text, command, bg=MC_YELLOW, fg=MC_DARK,
-                   width=18, font_size=11, pady=6):
-    return tk.Button(
-        parent, text=text, command=command,
-        bg=bg, fg=fg, activebackground=MC_RED, activeforeground=MC_WHITE,
-        font=("Arial Black", font_size, "bold"),
-        relief="flat", cursor="hand2",
-        width=width, pady=pady
-    )
-
-
 class McJinPOS(tk.Tk):
 
     def __init__(self):
@@ -109,7 +109,8 @@ class McJinPOS(tk.Tk):
         self.show_frame("LoginFrame")
 
     def _build_frames(self):
-        for FrameClass in (LoginFrame, MainMenuFrame, OrderFrame, TotalSalesFrame):
+        for FrameClass in (LoginFrame, MainMenuFrame, OrderFrame,
+                           TotalSalesFrame):
             frame = FrameClass(parent=self.container, controller=self)
             self.frames[FrameClass.__name__] = frame
             frame.grid(row=0, column=0, sticky="nsew")
@@ -172,6 +173,17 @@ class McJinPOS(tk.Tk):
         return compute_grand_total(self.sales_log)
 
 
+def make_mc_button(parent, text, command, bg=MC_YELLOW, fg=MC_DARK,
+                   width=18, font_size=11, pady=6):
+    return tk.Button(
+        parent, text=text, command=command,
+        bg=bg, fg=fg, activebackground=MC_RED, activeforeground=MC_WHITE,
+        font=("Arial Black", font_size, "bold"),
+        relief="flat", cursor="hand2",
+        width=width, pady=pady
+    )
+
+
 class LoginFrame(tk.Frame):
 
     def __init__(self, parent, controller):
@@ -205,7 +217,8 @@ class LoginFrame(tk.Frame):
                      row=1, column=0, sticky="e", padx=8, pady=8)
         self.username_var = tk.StringVar()
         u_entry = tk.Entry(card, textvariable=self.username_var,
-                           font=("Arial", 12), width=22, relief="solid", bd=1)
+                           font=("Arial", 12), width=22,
+                           relief="solid", bd=1)
         u_entry.grid(row=1, column=1, pady=8)
         u_entry.focus()
 
@@ -301,7 +314,8 @@ class MainMenuFrame(tk.Frame):
                        bg=MC_GREEN, fg=MC_WHITE,
                        width=26, font_size=14, pady=14).pack(pady=10)
 
-        btn_out = make_mc_button(center, "LOG OUT", self._logout,
+        btn_out = make_mc_button(center, "LOG OUT",
+                                 self._logout,
                                  bg=MC_DARK, fg=MC_RED,
                                  width=26, font_size=14, pady=14)
         btn_out.config(highlightthickness=2, highlightbackground=MC_RED)
@@ -357,7 +371,8 @@ class OrderFrame(tk.Frame):
 
         self._build_category_tabs(left)
 
-        self.items_canvas = tk.Canvas(left, bg=MC_LIGHT_BG, highlightthickness=0)
+        self.items_canvas = tk.Canvas(left, bg=MC_LIGHT_BG,
+                                      highlightthickness=0)
         scrollbar = ttk.Scrollbar(left, orient="vertical",
                                   command=self.items_canvas.yview)
         self.items_canvas.configure(yscrollcommand=scrollbar.set)
@@ -406,7 +421,8 @@ class OrderFrame(tk.Frame):
         COLS = 3
         for idx, (code, (name, _, price)) in enumerate(items):
             row, col = divmod(idx, COLS)
-            card = tk.Frame(self.items_frame, bg=MC_WHITE, relief="solid", bd=1)
+            card = tk.Frame(self.items_frame, bg=MC_WHITE,
+                            relief="solid", bd=1)
             card.grid(row=row, column=col, padx=6, pady=6,
                       sticky="nsew", ipadx=4, ipady=4)
             self.items_frame.grid_columnconfigure(col, weight=1)
@@ -437,43 +453,49 @@ class OrderFrame(tk.Frame):
                  bg=MC_RED, fg=MC_YELLOW,
                  pady=8).grid(row=0, column=0, sticky="ew")
 
-        cols = ("Item", "Qty", "Price", "Subtotal")
-        self.order_tree = ttk.Treeview(right, columns=cols,
-                                       show="headings", height=12)
-        for col in cols:
-            self.order_tree.heading(col, text=col)
-        self.order_tree.column("Item",     width=130)
-        self.order_tree.column("Qty",      width=40,  anchor="center")
-        self.order_tree.column("Price",    width=60,  anchor="center")
-        self.order_tree.column("Subtotal", width=70,  anchor="center")
+        # Scrollable order list with +/- buttons
+        order_container = tk.Frame(right, bg=MC_WHITE)
+        order_container.grid(row=1, column=0, sticky="nsew", padx=8, pady=4)
+        order_container.grid_rowconfigure(0, weight=1)
+        order_container.grid_columnconfigure(0, weight=1)
 
-        style = ttk.Style()
-        style.configure("Treeview", font=("Arial", 10), rowheight=26)
-        style.configure("Treeview.Heading",
-                        font=("Arial", 10, "bold"), background=MC_GRAY)
-        self.order_tree.grid(row=1, column=0, sticky="nsew", padx=8, pady=4)
+        self.order_canvas = tk.Canvas(order_container, bg=MC_WHITE,
+                                      highlightthickness=0)
+        order_scrollbar = ttk.Scrollbar(order_container, orient="vertical",
+                                        command=self.order_canvas.yview)
+        self.order_canvas.configure(yscrollcommand=order_scrollbar.set)
+        self.order_canvas.grid(row=0, column=0, sticky="nsew")
+        order_scrollbar.grid(row=0, column=1, sticky="ns")
 
-        tk.Button(right, text="Remove Selected",
-                  command=self._remove_selected,
-                  bg=MC_RED, fg=MC_WHITE, relief="flat",
-                  font=("Arial", 9, "bold"), cursor="hand2",
-                  pady=4).grid(row=2, column=0, sticky="ew", padx=8, pady=2)
+        self.order_list_frame = tk.Frame(self.order_canvas, bg=MC_WHITE)
+        self.order_list_window = self.order_canvas.create_window(
+            (0, 0), window=self.order_list_frame, anchor="nw")
+
+        self.order_list_frame.bind("<Configure>",
+            lambda e: self.order_canvas.configure(
+                scrollregion=self.order_canvas.bbox("all")))
+        self.order_canvas.bind("<Configure>",
+            lambda e: self.order_canvas.itemconfig(
+                self.order_list_window, width=e.width))
+        self.order_canvas.bind("<MouseWheel>",
+            lambda e: self.order_canvas.yview_scroll(
+                int(-1 * (e.delta / 120)), "units"))
 
         ttk.Separator(right, orient="horizontal").grid(
-            row=3, column=0, sticky="ew", padx=8, pady=4)
+            row=2, column=0, sticky="ew", padx=8, pady=4)
 
         self.count_label = tk.Label(right, text="Items: 0",
                                     font=("Arial", 10),
                                     bg=MC_WHITE, fg=MC_DARK)
-        self.count_label.grid(row=4, column=0, padx=12, sticky="w")
+        self.count_label.grid(row=3, column=0, padx=12, sticky="w")
 
         self.total_label = tk.Label(right, text="Total:  $0.00",
                                     font=("Arial Black", 14, "bold"),
                                     bg=MC_WHITE, fg=MC_DARK)
-        self.total_label.grid(row=5, column=0, padx=12, pady=4, sticky="e")
+        self.total_label.grid(row=4, column=0, padx=12, pady=4, sticky="e")
 
         cash_frame = tk.Frame(right, bg=MC_WHITE)
-        cash_frame.grid(row=6, column=0, padx=8, pady=4, sticky="ew")
+        cash_frame.grid(row=5, column=0, padx=8, pady=4, sticky="ew")
         cash_frame.grid_columnconfigure(1, weight=1)
         tk.Label(cash_frame, text="Cash Tendered ($):",
                  font=("Arial", 10, "bold"),
@@ -485,7 +507,7 @@ class OrderFrame(tk.Frame):
         cash_entry.grid(row=0, column=1, padx=(6, 0), sticky="e")
 
         qc_frame = tk.Frame(right, bg=MC_WHITE)
-        qc_frame.grid(row=7, column=0, padx=8, pady=2, sticky="ew")
+        qc_frame.grid(row=6, column=0, padx=8, pady=2, sticky="ew")
         for amt in (5, 10, 20, 50, 100):
             tk.Button(qc_frame, text=f"${amt}",
                       command=lambda a=amt: self.cash_var.set(str(a)),
@@ -493,16 +515,18 @@ class OrderFrame(tk.Frame):
                       font=("Arial", 9), cursor="hand2",
                       padx=6, pady=3).pack(side="left", padx=2)
 
-        make_mc_button(right, "CHECKOUT", self._checkout,
+        make_mc_button(right, "CHECKOUT",
+                       self._checkout,
                        bg=MC_GREEN, fg=MC_WHITE,
                        width=22, font_size=12,
-                       pady=10).grid(row=8, column=0,
+                       pady=10).grid(row=7, column=0,
                                      padx=8, pady=8, sticky="ew")
 
-        make_mc_button(right, "CLEAR ORDER", self._clear_order,
+        make_mc_button(right, "CLEAR ORDER",
+                       self._clear_order,
                        bg=MC_RED, fg=MC_WHITE,
                        width=22, font_size=11,
-                       pady=6).grid(row=9, column=0,
+                       pady=6).grid(row=8, column=0,
                                     padx=8, pady=4, sticky="ew")
 
     def _on_items_configure(self, event):
@@ -519,18 +543,18 @@ class OrderFrame(tk.Frame):
         self.controller.add_to_order(code)
         self._refresh_order_panel()
 
-    def _remove_selected(self):
-        selected = self.order_tree.selection()
-        if not selected:
-            messagebox.showinfo("Remove Item", "Please select an item to remove.")
-            return
-        code = self.order_tree.item(selected[0], "tags")[0]
+    def _increment_item(self, code):
+        self.controller.add_to_order(code)
+        self._refresh_order_panel()
+
+    def _decrement_item(self, code):
         self.controller.remove_from_order(code)
         self._refresh_order_panel()
 
     def _clear_order(self):
         if self.controller.current_order:
-            if messagebox.askyesno("Clear Order", "Remove all items from the order?"):
+            if messagebox.askyesno("Clear Order",
+                                   "Remove all items from the order?"):
                 self.controller.clear_order()
                 self._refresh_order_panel()
 
@@ -538,32 +562,77 @@ class OrderFrame(tk.Frame):
         self.user_label_order.config(
             text="User: " + self.controller.logged_in_user.get())
 
-        for row in self.order_tree.get_children():
-            self.order_tree.delete(row)
+        # Clear existing order rows
+        for widget in self.order_list_frame.winfo_children():
+            widget.destroy()
 
+        # Header row
+        hdr = tk.Frame(self.order_list_frame, bg=MC_GRAY)
+        hdr.pack(fill="x", pady=(0, 2))
+        tk.Label(hdr, text="Item", font=("Arial", 9, "bold"),
+                 bg=MC_GRAY, fg=MC_DARK, width=14,
+                 anchor="w").pack(side="left", padx=4)
+        tk.Label(hdr, text="Qty", font=("Arial", 9, "bold"),
+                 bg=MC_GRAY, fg=MC_DARK, width=8,
+                 anchor="center").pack(side="left")
+        tk.Label(hdr, text="Subtotal", font=("Arial", 9, "bold"),
+                 bg=MC_GRAY, fg=MC_DARK, width=8,
+                 anchor="e").pack(side="right", padx=4)
+
+        # Item rows with +/- buttons
         for item in self.controller.current_order:
             subtotal = item["price"] * item["qty"]
-            self.order_tree.insert("", "end",
-                                   values=(item["name"],
-                                           item["qty"],
-                                           f"${item['price']:.2f}",
-                                           f"${subtotal:.2f}"),
-                                   tags=(item["code"],))
+            row = tk.Frame(self.order_list_frame, bg=MC_WHITE,
+                           pady=3)
+            row.pack(fill="x", pady=1)
+
+            tk.Label(row, text=item["name"], font=("Arial", 9),
+                     bg=MC_WHITE, fg=MC_DARK, width=14,
+                     anchor="w").pack(side="left", padx=4)
+
+            # +/- quantity controls
+            qty_frame = tk.Frame(row, bg=MC_WHITE)
+            qty_frame.pack(side="left", padx=4)
+
+            tk.Button(qty_frame, text="−", font=("Arial", 10, "bold"),
+                      bg=MC_RED, fg=MC_WHITE, relief="flat",
+                      width=2, cursor="hand2",
+                      command=lambda c=item["code"]: self._decrement_item(c)
+                      ).pack(side="left", padx=2)
+
+            tk.Label(qty_frame, text=str(item["qty"]),
+                     font=("Arial", 10, "bold"),
+                     bg=MC_WHITE, fg=MC_DARK, width=3,
+                     anchor="center").pack(side="left")
+
+            tk.Button(qty_frame, text="+", font=("Arial", 10, "bold"),
+                      bg=MC_GREEN, fg=MC_WHITE, relief="flat",
+                      width=2, cursor="hand2",
+                      command=lambda c=item["code"]: self._increment_item(c)
+                      ).pack(side="left", padx=2)
+
+            tk.Label(row, text=f"${subtotal:.2f}",
+                     font=("Arial", 9, "bold"),
+                     bg=MC_WHITE, fg=MC_DARK,
+                     anchor="e").pack(side="right", padx=4)
 
         item_count = count_order_items(self.controller.current_order)
-        self.count_label.config(text=f"Items: {item_count}")
+        self.count_label.config(
+            text=f"Items: {item_count}  (len() counts {item_count} line(s))")
 
         total = self.controller.get_order_total()
         self.total_label.config(text=f"Total:  ${total:.2f}")
 
     def _checkout(self):
         if not self.controller.current_order:
-            messagebox.showwarning("Empty Order", "Please add items before checking out.")
+            messagebox.showwarning("Empty Order",
+                                   "Please add items before checking out.")
             return
         try:
             cash = float(self.cash_var.get())
         except ValueError:
-            messagebox.showerror("Invalid Cash", "Please enter a valid cash amount.")
+            messagebox.showerror("Invalid Cash",
+                                 "Please enter a valid cash amount.")
             return
 
         total = self.controller.get_order_total()
@@ -599,13 +668,15 @@ class OrderFrame(tk.Frame):
 
         tk.Label(items_frame,
                  text=f"{'Item':<25}{'Qty':>3}{'Amount':>10}",
-                 font=("Courier", 9, "bold"), bg=MC_WHITE).pack(anchor="w")
+                 font=("Courier", 9, "bold"),
+                 bg=MC_WHITE).pack(anchor="w")
 
         for item in last["items"]:
             sub = item["price"] * item["qty"]
             tk.Label(items_frame,
                      text=f"{item['name'][:24]:<25}{item['qty']:>3}  ${sub:>6.2f}",
-                     font=("Courier", 9), bg=MC_WHITE).pack(anchor="w")
+                     font=("Courier", 9),
+                     bg=MC_WHITE).pack(anchor="w")
 
         ttk.Separator(receipt_win).pack(fill="x", padx=20, pady=10)
 
@@ -616,15 +687,19 @@ class OrderFrame(tk.Frame):
             f = ("Arial Black", 11) if bold else ("Arial", 11)
             row = tk.Frame(totals_frame, bg=MC_WHITE)
             row.pack(fill="x")
-            tk.Label(row, text=label, font=f, bg=MC_WHITE).pack(side="left")
-            tk.Label(row, text=value, font=f, bg=MC_WHITE).pack(side="right")
+            tk.Label(row, text=label, font=f,
+                     bg=MC_WHITE).pack(side="left")
+            tk.Label(row, text=value, font=f,
+                     bg=MC_WHITE).pack(side="right")
 
         receipt_row("Total:",  f"${total:.2f}", bold=True)
         receipt_row("Cash:",   f"${cash:.2f}")
-        receipt_row("Change:", f"${change:.2f}", bold=True)
+        receipt_row("Change:", f"${change:.2f}  (rounded via round())",
+                    bold=True)
 
         tk.Label(receipt_win, text=last["timestamp"],
-                 font=("Arial", 8), bg=MC_WHITE, fg="gray").pack(pady=(14, 0))
+                 font=("Arial", 8), bg=MC_WHITE,
+                 fg="gray").pack(pady=(14, 0))
 
         ttk.Separator(receipt_win).pack(fill="x", padx=20, pady=8)
         make_mc_button(receipt_win, "Close", receipt_win.destroy,
@@ -663,7 +738,8 @@ class TotalSalesFrame(tk.Frame):
         table_frame.pack(fill="both", expand=True, padx=16, pady=10)
 
         cols = ("#", "Cashier", "Timestamp", "Items", "Total")
-        self.sales_tree = ttk.Treeview(table_frame, columns=cols, show="headings")
+        self.sales_tree = ttk.Treeview(table_frame, columns=cols,
+                                       show="headings")
         for col in cols:
             self.sales_tree.heading(col, text=col)
         self.sales_tree.column("#",         width=40,  anchor="center")
@@ -686,7 +762,8 @@ class TotalSalesFrame(tk.Frame):
         style.configure("Treeview", font=("Arial", 10), rowheight=26)
         style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
 
-        self.sales_tree.bind("<<TreeviewSelect>>", self._show_transaction_detail)
+        self.sales_tree.bind("<<TreeviewSelect>>",
+                             self._show_transaction_detail)
 
     def _build_footer(self):
         footer = tk.Frame(self, bg=MC_DARK, pady=12)
@@ -723,7 +800,7 @@ class TotalSalesFrame(tk.Frame):
                                    tags=(str(idx - 1),))
 
         grand = compute_grand_total(self.controller.sales_log)
-        self.grand_label.config(text=f"Grand Total:  ${grand:.2f}")
+        self.grand_label.config(text=f"Grand Total:  ${grand:.2f}  (sum())")
 
         self.tx_count_label.config(
             text=f"Transactions: {len(self.controller.sales_log)}")
@@ -731,7 +808,8 @@ class TotalSalesFrame(tk.Frame):
         best = get_highest_sale(self.controller.sales_log)
         if best:
             self.highest_label.config(
-                text=f"Highest Sale: ${best['total']:.2f} by {best['cashier']}")
+                text=f"Highest Sale: ${best['total']:.2f} "
+                     f"by {best['cashier']}  (max())")
         else:
             self.highest_label.config(text="")
 
@@ -766,7 +844,8 @@ class TotalSalesFrame(tk.Frame):
 
         tk.Label(list_frame,
                  text=f"{'Item':<26}{'Qty':>3}{'Price':>8}{'Sub':>10}",
-                 font=("Courier", 9, "bold"), bg=MC_WHITE).pack(anchor="w")
+                 font=("Courier", 9, "bold"),
+                 bg=MC_WHITE).pack(anchor="w")
 
         for item in record["items"]:
             sub = item["price"] * item["qty"]
@@ -775,7 +854,8 @@ class TotalSalesFrame(tk.Frame):
                            f"{item['qty']:>3}"
                            f"  ${item['price']:>5.2f}"
                            f"  ${sub:>6.2f}"),
-                     font=("Courier", 9), bg=MC_WHITE).pack(anchor="w")
+                     font=("Courier", 9),
+                     bg=MC_WHITE).pack(anchor="w")
 
         ttk.Separator(win).pack(fill="x", padx=20, pady=6)
 
@@ -785,8 +865,10 @@ class TotalSalesFrame(tk.Frame):
         def row(lbl, val):
             f = tk.Frame(totals, bg=MC_WHITE)
             f.pack(fill="x")
-            tk.Label(f, text=lbl, font=("Arial", 11), bg=MC_WHITE).pack(side="left")
-            tk.Label(f, text=val, font=("Arial", 11, "bold"), bg=MC_WHITE).pack(side="right")
+            tk.Label(f, text=lbl, font=("Arial", 11),
+                     bg=MC_WHITE).pack(side="left")
+            tk.Label(f, text=val, font=("Arial", 11, "bold"),
+                     bg=MC_WHITE).pack(side="right")
 
         row("Total:",  f"${record['total']:.2f}")
         row("Cash:",   f"${record['cash']:.2f}")
