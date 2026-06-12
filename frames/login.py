@@ -104,59 +104,93 @@ class LoginFrame(tk.Frame):
         self.u_entry.bind_key("<Return>", lambda e: self.p_entry.focus())
 
     def _build_role_card(self, parent, role_key, meta):
-        is_selected = self._selected_role.get() == role_key
-
-        def select():
-            self._selected_role.set(role_key)
-            self._refresh_role_cards()
+        def select(_=None):
+            if self._selected_role.get() != role_key:
+                self._selected_role.set(role_key)
+                self._refresh_role_cards()
 
         card = tk.Frame(
-            parent, bg=meta["color"] if is_selected else SURFACE,
-            highlightbackground=meta["color"],
+            parent, bg=SURFACE,
+            highlightbackground=BORDER,
             highlightthickness=2, cursor="hand2")
         card.pack(side="left", expand=True, fill="x",
                   padx=(0, 8) if role_key == "admin" else (8, 0))
 
-        inner = tk.Frame(card, bg=meta["color"] if is_selected else SURFACE)
+        inner = tk.Frame(card, bg=SURFACE)
         inner.pack(fill="both", padx=14, pady=12)
 
-        tk.Label(inner, text=meta["icon"], font=(FONT, 22),
-                 bg=meta["color"] if is_selected else SURFACE,
-                 fg=TEXT_LIGHT if is_selected else meta["color"]
-                 ).pack(anchor="w")
-        tk.Label(inner, text=meta["label"], font=font(12, "bold"),
-                 bg=meta["color"] if is_selected else SURFACE,
-                 fg=TEXT_LIGHT if is_selected else TEXT
-                 ).pack(anchor="w")
-        tk.Label(inner, text=meta["desc"], font=font(8),
-                 bg=meta["color"] if is_selected else SURFACE,
-                 fg="#FFE0B2" if is_selected else TEXT_MUTED,
-                 wraplength=130, justify="left"
-                 ).pack(anchor="w", pady=(2, 0))
+        icon_lbl = tk.Label(inner, text=meta["icon"], font=(FONT, 22),
+                            bg=SURFACE, fg=meta["color"])
+        icon_lbl.pack(anchor="w")
+        title_lbl = tk.Label(inner, text=meta["label"], font=font(12, "bold"),
+                            bg=SURFACE, fg=TEXT)
+        title_lbl.pack(anchor="w")
+        desc_lbl = tk.Label(inner, text=meta["desc"], font=font(8),
+                            bg=SURFACE, fg=TEXT_MUTED,
+                            wraplength=130, justify="left")
+        desc_lbl.pack(anchor="w", pady=(2, 0))
 
-        card.bind("<Button-1>", lambda e: select())
-        inner.bind("<Button-1>", lambda e: select())
-        for child in inner.winfo_children():
-            child.bind("<Button-1>", lambda e: select())
+        widgets = (card, inner, icon_lbl, title_lbl, desc_lbl)
+        card._hovered = False
 
-        self._role_btns[role_key] = (card, inner)
+        def on_enter(_):
+            card._hovered = True
+            self._apply_role_style(role_key)
+
+        def on_leave(_):
+            card.after(10, _check_leave)
+
+        def _check_leave():
+            try:
+                x, y = card.winfo_pointerxy()
+                cx, cy = card.winfo_rootx(), card.winfo_rooty()
+                cw, ch = card.winfo_width(), card.winfo_height()
+                if not (cx <= x < cx + cw and cy <= y < cy + ch):
+                    card._hovered = False
+                    self._apply_role_style(role_key)
+            except tk.TclError:
+                pass
+
+        for w in widgets:
+            w.bind("<Button-1>", select)
+            w.bind("<Enter>", on_enter)
+            w.bind("<Leave>", on_leave)
+
+        self._role_btns[role_key] = {
+            "card": card, "inner": inner, "icon": icon_lbl,
+            "title": title_lbl, "desc": desc_lbl, "meta": meta,
+        }
+        self._apply_role_style(role_key)
+
+    def _apply_role_style(self, role_key):
+        parts = self._role_btns[role_key]
+        meta = parts["meta"]
+        color = meta["color"]
+        selected = self._selected_role.get() == role_key
+        hovered = getattr(parts["card"], "_hovered", False)
+
+        bg = color if selected else SURFACE
+        parts["card"].config(bg=bg, highlightbackground=color)
+        parts["inner"].config(bg=bg)
+        parts["icon"].config(bg=bg,
+                             fg=TEXT_LIGHT if selected else color)
+        parts["title"].config(bg=bg,
+                             fg=TEXT_LIGHT if selected else TEXT)
+        parts["desc"].config(bg=bg,
+                             fg="#FFE0B2" if selected else TEXT_MUTED)
+
+        if not selected:
+            parts["card"].config(
+                highlightbackground=color if hovered else BORDER)
 
     def _refresh_role_cards(self):
-        for widget in list(self._role_btns.values()):
-            card, inner = widget
-            card.destroy()
-
-        self._role_btns.clear()
-
-        if hasattr(self, 'role_frame') and self.role_frame.winfo_exists():
-            for child in self.role_frame.winfo_children():
-                child.destroy()
-            for role_key, meta in ROLES.items():
-                self._build_role_card(self.role_frame, role_key, meta)
+        for role_key in self._role_btns:
+            self._apply_role_style(role_key)
 
     def on_show(self):
         self._clear_fields()
         self._selected_role.set("cashier")
+        self._refresh_role_cards()
         self.u_entry.focus()
 
     def _attempt_login(self):

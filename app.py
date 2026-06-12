@@ -28,6 +28,7 @@ class McJinPOS(tk.Tk):
 
         self.frames = {}
         self._build_frames()
+        self._prewarm_frames()
         self.show_frame("LoginFrame")
 
     def _build_frames(self):
@@ -36,6 +37,16 @@ class McJinPOS(tk.Tk):
             frame = FrameClass(parent=self.container, controller=self)
             self.frames[FrameClass.__name__] = frame
             frame.grid(row=0, column=0, sticky="nsew")
+
+    def _prewarm_frames(self):
+        # Force every frame to compute its layout and measure its fonts
+        # once, up front. Without this the first frame revealed after login
+        # settles its geometry/fonts on screen (a one-time "glitch"); Tk
+        # then caches the results so later navigations are clean.
+        self.update_idletasks()
+        for frame in self.frames.values():
+            frame.tkraise()
+            self.update_idletasks()
 
     def show_frame(self, frame_name):
         frame = self.frames[frame_name]

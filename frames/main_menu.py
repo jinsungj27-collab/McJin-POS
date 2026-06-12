@@ -21,17 +21,30 @@ class MainMenuFrame(tk.Frame):
         role = self.controller.logged_in_role.get()
         if role == "cashier":
             self.controller.show_frame("OrderFrame")
+            return
+        # Reset any stale hover state and settle geometry before the
+        # frame becomes visible, so the cards don't flicker on first show.
+        for card, accent in getattr(self, "_cards", []):
+            card._hovered = False
+            try:
+                card.config(highlightbackground=BORDER)
+            except tk.TclError:
+                pass
+        self.update_idletasks()
 
     def _build_ui(self):
+        self._cards = []
         self.user_label = build_topbar(self, self.controller, "McJin POS")
         self._build_center()
 
     def _build_center(self):
         wrap = tk.Frame(self, bg=BG)
         wrap.pack(fill="both", expand=True)
+        wrap.grid_rowconfigure(0, weight=1)
+        wrap.grid_columnconfigure(0, weight=1)
 
         center = tk.Frame(wrap, bg=BG)
-        center.place(relx=0.5, rely=0.5, anchor="center")
+        center.grid(row=0, column=0)
 
         tk.Label(center, text="What would you like to do?",
                  font=font(24, "bold"), bg=BG,
@@ -62,6 +75,7 @@ class MainMenuFrame(tk.Frame):
                         width=240, height=220)
         card.grid(row=0, column=col, padx=14)
         card.grid_propagate(False)
+        self._cards.append((card, accent))
 
         strip = tk.Frame(card, bg=accent, height=6)
         strip.pack(fill="x")
@@ -78,23 +92,36 @@ class MainMenuFrame(tk.Frame):
 
         card._hovered = False
 
+        def _pointer_inside():
+            try:
+                if not card.winfo_ismapped():
+                    return False
+                x, y = card.winfo_pointerxy()
+                cx, cy = card.winfo_rootx(), card.winfo_rooty()
+                cw, ch = card.winfo_width(), card.winfo_height()
+                # Width/height of 1 means geometry isn't computed yet.
+                if cw <= 1 or ch <= 1:
+                    return False
+                return cx <= x < cx + cw and cy <= y < cy + ch
+            except tk.TclError:
+                return False
+
         def on_enter(_):
+            if not _pointer_inside():
+                return
             card._hovered = True
             card.config(highlightbackground=accent)
 
         def on_leave(event):
-            card.after(10, lambda: _check_leave())
+            card.after(10, _check_leave)
 
         def _check_leave():
-            try:
-                x, y = card.winfo_pointerxy()
-                cx, cy = card.winfo_rootx(), card.winfo_rooty()
-                cw, ch = card.winfo_width(), card.winfo_height()
-                if not (cx <= x < cx + cw and cy <= y < cy + ch):
-                    card._hovered = False
+            if not _pointer_inside():
+                card._hovered = False
+                try:
                     card.config(highlightbackground=BORDER)
-            except tk.TclError:
-                pass
+                except tk.TclError:
+                    pass
 
         for w in (card, strip, body, *body.winfo_children()):
             w.bind("<Enter>", on_enter)
