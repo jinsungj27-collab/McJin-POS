@@ -18,6 +18,9 @@ class MainMenuFrame(tk.Frame):
     def on_show(self):
         self.user_label.config(
             text="👤  " + self.controller.logged_in_user.get())
+        role = self.controller.logged_in_role.get()
+        if role == "cashier":
+            self.controller.show_frame("OrderFrame")
 
     def _build_ui(self):
         self.user_label = build_topbar(self, self.controller, "McJin POS")

@@ -35,13 +35,21 @@ def _load_credentials():
     creds = {}
     for pair in raw.split(","):
         pair = pair.strip()
-        if ":" in pair:
-            user, pwd = pair.split(":", 1)
-            creds[user.strip()] = pwd.strip()
+        parts = pair.split(":")
+        if len(parts) >= 2:
+            user = parts[0].strip()
+            pwd  = parts[1].strip()
+            role = parts[2].strip().lower() if len(parts) >= 3 else "cashier"
+            creds[user] = {"password": pwd, "role": role}
     return creds
 
 
 CREDENTIALS = _load_credentials()
+
+ROLES = {
+    "admin":   {"label": "Admin",   "icon": "🛡️",  "color": "#E11D2A", "desc": "Full access — orders & reports"},
+    "cashier": {"label": "Cashier", "icon": "🧾",  "color": "#16A34A", "desc": "Take orders & checkout"},
+}
 
 CATEGORY_ICONS = {
     "Burgers":   "🍔",

@@ -1,8 +1,8 @@
 import tkinter as tk
 
 from config import (
-    BG, SURFACE, PRIMARY, ACCENT, DANGER, TEXT, TEXT_MUTED, TEXT_LIGHT,
-    BORDER, FIELD_BG, FONT, font
+    BG, SURFACE, PRIMARY, ACCENT, DANGER, SUCCESS, TEXT, TEXT_MUTED,
+    TEXT_LIGHT, BORDER, FIELD_BG, FONT, ROLES, font
 )
 from widgets import ModernButton, ModernEntry
 
@@ -11,7 +11,8 @@ class LoginFrame(tk.Frame):
 
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG)
-        self.controller = controller
+        self.controller   = controller
+        self._selected_role = tk.StringVar(value="cashier")
         self._build_ui()
 
     def _build_ui(self):
@@ -48,16 +49,28 @@ class LoginFrame(tk.Frame):
                         highlightthickness=1)
         card.place(relx=0.5, rely=0.5, anchor="center")
 
-        pad = tk.Frame(card, bg=SURFACE, padx=44, pady=40)
+        pad = tk.Frame(card, bg=SURFACE, padx=44, pady=36)
         pad.pack()
 
         tk.Label(pad, text="Welcome back 👋",
                  font=font(22, "bold"), bg=SURFACE,
                  fg=TEXT).pack(anchor="w")
-        tk.Label(pad, text="Sign in to start your shift",
+        tk.Label(pad, text="Choose your role and sign in",
                  font=font(11), bg=SURFACE,
-                 fg=TEXT_MUTED).pack(anchor="w", pady=(2, 24))
+                 fg=TEXT_MUTED).pack(anchor="w", pady=(2, 20))
 
+        # ── Role selector ──────────────────────────────────────────
+        tk.Label(pad, text="SIGN IN AS", font=font(9, "bold"),
+                 bg=SURFACE, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 8))
+
+        role_frame = tk.Frame(pad, bg=SURFACE)
+        role_frame.pack(fill="x", pady=(0, 20))
+
+        self._role_btns = {}
+        for role_key, meta in ROLES.items():
+            self._build_role_card(role_frame, role_key, meta)
+
+        # ── Username ───────────────────────────────────────────────
         tk.Label(pad, text="USERNAME", font=font(9, "bold"),
                  bg=SURFACE, fg=TEXT_MUTED).pack(anchor="w")
         self.username_var = tk.StringVar()
@@ -77,21 +90,89 @@ class LoginFrame(tk.Frame):
                                     bg=SURFACE, fg=DANGER)
         self.error_label.pack(anchor="w", pady=(0, 8))
 
-        ModernButton(pad, "Sign In", self._attempt_login,
+        ModernButton(pad, "Sign In  →", self._attempt_login,
                      kind="primary", font_size=13,
                      pad_y=12).pack(fill="x")
 
         hint = tk.Frame(pad, bg=FIELD_BG)
-        hint.pack(fill="x", pady=(20, 0))
-        tk.Label(hint, text="Demo:  admin / admin123",
+        hint.pack(fill="x", pady=(16, 0))
+        tk.Label(hint, text="Admin: admin / admin123   |   Cashier: cashier1 / pass1",
                  font=font(9), bg=FIELD_BG,
                  fg=TEXT_MUTED).pack(pady=8)
 
         self.p_entry.bind_key("<Return>", lambda e: self._attempt_login())
         self.u_entry.bind_key("<Return>", lambda e: self.p_entry.focus())
 
+    def _build_role_card(self, parent, role_key, meta):
+        is_selected = self._selected_role.get() == role_key
+
+        def select():
+            self._selected_role.set(role_key)
+            self._refresh_role_cards()
+
+        card = tk.Frame(
+            parent, bg=meta["color"] if is_selected else SURFACE,
+            highlightbackground=meta["color"],
+            highlightthickness=2, cursor="hand2")
+        card.pack(side="left", expand=True, fill="x",
+                  padx=(0, 8) if role_key == "admin" else (8, 0))
+
+        inner = tk.Frame(card, bg=meta["color"] if is_selected else SURFACE)
+        inner.pack(fill="both", padx=14, pady=12)
+
+        tk.Label(inner, text=meta["icon"], font=(FONT, 22),
+                 bg=meta["color"] if is_selected else SURFACE,
+                 fg=TEXT_LIGHT if is_selected else meta["color"]
+                 ).pack(anchor="w")
+        tk.Label(inner, text=meta["label"], font=font(12, "bold"),
+                 bg=meta["color"] if is_selected else SURFACE,
+                 fg=TEXT_LIGHT if is_selected else TEXT
+                 ).pack(anchor="w")
+        tk.Label(inner, text=meta["desc"], font=font(8),
+                 bg=meta["color"] if is_selected else SURFACE,
+                 fg="#FFFFFF99" if is_selected else TEXT_MUTED,
+                 wraplength=130, justify="left"
+                 ).pack(anchor="w", pady=(2, 0))
+
+        card.bind("<Button-1>", lambda e: select())
+        inner.bind("<Button-1>", lambda e: select())
+        for child in inner.winfo_children():
+            child.bind("<Button-1>", lambda e: select())
+
+        self._role_btns[role_key] = (card, inner)
+
+    def _refresh_role_cards(self):
+        for widget in list(self._role_btns.values()):
+            card, inner = widget
+            card.destroy()
+
+        self._role_btns.clear()
+        role_frame = None
+        for widget in self.winfo_descendants():
+            if isinstance(widget, tk.Frame) and len(widget.winfo_children()) == 2:
+                children = widget.winfo_children()
+                if all(isinstance(c, tk.Frame) for c in children):
+                    role_frame = widget
+                    break
+
+        for role_frame_widget in self.winfo_descendants():
+            if (isinstance(role_frame_widget, tk.Frame) and
+                    role_frame_widget.winfo_parent() and
+                    len(role_frame_widget.winfo_children()) in (0, 2)):
+                children_tags = [type(c).__name__ for c in role_frame_widget.winfo_children()]
+                if children_tags == ["Frame", "Frame"]:
+                    role_frame = role_frame_widget
+                    break
+
+        if role_frame:
+            for child in role_frame.winfo_children():
+                child.destroy()
+            for role_key, meta in ROLES.items():
+                self._build_role_card(role_frame, role_key, meta)
+
     def on_show(self):
         self._clear_fields()
+        self._selected_role.set("cashier")
         self.u_entry.focus()
 
     def _attempt_login(self):
@@ -100,10 +181,24 @@ class LoginFrame(tk.Frame):
         if not username or not password:
             self._show_error("Please enter both username and password.")
             return
+
         if self.controller.login(username, password):
+            actual_role = self.controller.logged_in_role.get()
+            chosen_role = self._selected_role.get()
+
+            if actual_role != chosen_role:
+                role_label = chosen_role.capitalize()
+                self._show_error(
+                    f"'{username}' is not a {role_label} account.")
+                self.password_var.set("")
+                return
+
             self.controller.logged_in_user.set(username)
             self._clear_fields()
-            self.controller.show_frame("MainMenuFrame")
+            if actual_role == "admin":
+                self.controller.show_frame("MainMenuFrame")
+            else:
+                self.controller.show_frame("OrderFrame")
         else:
             self._show_error("Invalid username or password.")
             self.password_var.set("")

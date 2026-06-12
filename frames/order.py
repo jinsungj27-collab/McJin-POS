@@ -16,6 +16,7 @@ class OrderFrame(tk.Frame):
         super().__init__(parent, bg=BG)
         self.controller   = controller
         self.category_var = tk.StringVar(value="Burgers")
+        self._add_cooldown = {}   # code -> bool, True = on cooldown
         self._build_ui()
 
     def on_show(self):
@@ -243,8 +244,12 @@ class OrderFrame(tk.Frame):
         self.items_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def _add_item(self, code):
+        if self._add_cooldown.get(code):
+            return
+        self._add_cooldown[code] = True
         self.controller.add_to_order(code)
         self._refresh_order_panel()
+        self.after(400, lambda: self._add_cooldown.update({code: False}))
 
     def _increment_item(self, code):
         self.controller.add_to_order(code)

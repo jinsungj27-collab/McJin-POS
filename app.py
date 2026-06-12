@@ -16,6 +16,7 @@ class McJinPOS(tk.Tk):
         self.configure(bg=BG)
 
         self.logged_in_user = tk.StringVar()
+        self.logged_in_role = tk.StringVar(value="cashier")
         self.sales_log      = load_sales()
         self.current_order  = []
 
@@ -42,10 +43,15 @@ class McJinPOS(tk.Tk):
         frame.tkraise()
 
     def login(self, username, password):
-        return CREDENTIALS.get(username) == password
+        entry = CREDENTIALS.get(username)
+        if entry and entry["password"] == password:
+            self.logged_in_role.set(entry["role"])
+            return True
+        return False
 
     def logout(self):
         self.logged_in_user.set("")
+        self.logged_in_role.set("cashier")
         self.current_order.clear()
         self.show_frame("LoginFrame")
 

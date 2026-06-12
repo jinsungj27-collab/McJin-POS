@@ -116,6 +116,8 @@ class TotalSalesFrame(tk.Frame):
             "day", background="#FDECEC", font=font(11, "bold"))
         self.sales_tree.tag_configure("order", font=font(10))
 
+        self._detail_suppressed = False
+
         self.sales_tree.bind("<<TreeviewSelect>>",
                              self._show_transaction_detail)
         self.sales_tree.bind("<MouseWheel>",
@@ -173,6 +175,8 @@ class TotalSalesFrame(tk.Frame):
             text=f"{CURRENCY}{best['total']:.2f}" if best else "—")
 
     def _show_transaction_detail(self, event):
+        if self._detail_suppressed:
+            return
         selected = self.sales_tree.selection()
         if not selected:
             return
@@ -262,8 +266,13 @@ class TotalSalesFrame(tk.Frame):
     def _on_right_click(self, event):
         iid = self.sales_tree.identify_row(event.y)
         if iid and iid in self._row_index:
+            self._detail_suppressed = True
             self.sales_tree.selection_set(iid)
             self._context_menu.post(event.x_root, event.y_root)
+            self.after(300, self._unsuppress_detail)
+
+    def _unsuppress_detail(self):
+        self._detail_suppressed = False
 
     def _get_selected_index(self):
         selected = self.sales_tree.selection()
