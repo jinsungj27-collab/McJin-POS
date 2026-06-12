@@ -80,37 +80,46 @@ class MainMenuFrame(tk.Frame):
         tk.Label(body, text=subtitle, font=font(10),
                  bg=SURFACE, fg=TEXT_MUTED).pack(pady=(2, 0))
 
-        # ── Stable hover: bind only to the card frame, check pointer
-        # position on leave to avoid child-widget flicker.
-        def _is_inside_card():
-            try:
-                px, py = card.winfo_pointerxy()
-                rx, ry = card.winfo_rootx(), card.winfo_rooty()
-                rw, rh = card.winfo_width(), card.winfo_height()
-                return rx <= px < rx + rw and ry <= py < ry + rh
-            except tk.TclError:
-                return False
+        # ── Bulletproof hover with NO timers (timers race on spam).
+        # The card receives a <Leave> even when the mouse just moves
+        # onto one of its own child widgets. So on every <Leave> we
+        # synchronously check which widget is actually under the
+        # pointer — if it's the card or any of its descendants, we
+        # ignore the event entirely. A hover flag keeps config() calls
+        # idempotent so rapid events never cause flicker.
+        state = {"hover": False}
+
+        def _pointer_inside_card(event):
+            w = card.winfo_containing(event.x_root, event.y_root)
+            while w is not None:
+                if w is card:
+                    return True
+                try:
+                    w = w.master
+                except AttributeError:
+                    return False
+            return False
 
         def on_enter(_):
-            card.config(highlightbackground=accent)
+            if not state["hover"]:
+                state["hover"] = True
+                card.config(highlightbackground=accent)
 
-        def on_leave(_):
-            # Small delay so that moving to a child widget doesn't
-            # fire a false leave — re-check pointer is still outside
-            card.after(20, lambda: card.config(
-                highlightbackground=BORDER)
-                if not _is_inside_card() else None)
+        def on_leave(event):
+            if _pointer_inside_card(event):
+                return  # still within the card — false leave, ignore
+            if state["hover"]:
+                state["hover"] = False
+                card.config(highlightbackground=BORDER)
 
-        # Bind only to the card container — NOT to children.
-        # Children inherit cursor but don't trigger their own Enter/Leave.
-        card.bind("<Enter>", on_enter)
-        card.bind("<Leave>", on_leave)
-
-        # Click propagates correctly through all children
-        def _click(e):
+        def _click(_):
             command()
 
+        # Bind to the card AND every child so movement anywhere on the
+        # card keeps the hover state consistent.
         for w in (card, strip, body, *body.winfo_children()):
+            w.bind("<Enter>", on_enter)
+            w.bind("<Leave>", on_leave)
             w.bind("<Button-1>", _click)
 
     def _logout(self):
