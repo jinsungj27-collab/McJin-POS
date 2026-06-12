@@ -14,6 +14,7 @@ class McJinPOS(tk.Tk):
         self.geometry("1180x760")
         self.minsize(1024, 680)
         self.configure(bg=BG)
+        self.state("zoomed")
 
         self.logged_in_user = tk.StringVar()
         self.logged_in_role = tk.StringVar(value="cashier")

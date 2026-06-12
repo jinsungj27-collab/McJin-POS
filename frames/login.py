@@ -63,12 +63,12 @@ class LoginFrame(tk.Frame):
         tk.Label(pad, text="SIGN IN AS", font=font(9, "bold"),
                  bg=SURFACE, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 8))
 
-        role_frame = tk.Frame(pad, bg=SURFACE)
-        role_frame.pack(fill="x", pady=(0, 20))
+        self.role_frame = tk.Frame(pad, bg=SURFACE)
+        self.role_frame.pack(fill="x", pady=(0, 20))
 
         self._role_btns = {}
         for role_key, meta in ROLES.items():
-            self._build_role_card(role_frame, role_key, meta)
+            self._build_role_card(self.role_frame, role_key, meta)
 
         # ── Username ───────────────────────────────────────────────
         tk.Label(pad, text="USERNAME", font=font(9, "bold"),
@@ -147,28 +147,12 @@ class LoginFrame(tk.Frame):
             card.destroy()
 
         self._role_btns.clear()
-        role_frame = None
-        for widget in self.winfo_descendants():
-            if isinstance(widget, tk.Frame) and len(widget.winfo_children()) == 2:
-                children = widget.winfo_children()
-                if all(isinstance(c, tk.Frame) for c in children):
-                    role_frame = widget
-                    break
 
-        for role_frame_widget in self.winfo_descendants():
-            if (isinstance(role_frame_widget, tk.Frame) and
-                    role_frame_widget.winfo_parent() and
-                    len(role_frame_widget.winfo_children()) in (0, 2)):
-                children_tags = [type(c).__name__ for c in role_frame_widget.winfo_children()]
-                if children_tags == ["Frame", "Frame"]:
-                    role_frame = role_frame_widget
-                    break
-
-        if role_frame:
-            for child in role_frame.winfo_children():
+        if hasattr(self, 'role_frame') and self.role_frame.winfo_exists():
+            for child in self.role_frame.winfo_children():
                 child.destroy()
             for role_key, meta in ROLES.items():
-                self._build_role_card(role_frame, role_key, meta)
+                self._build_role_card(self.role_frame, role_key, meta)
 
     def on_show(self):
         self._clear_fields()

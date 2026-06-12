@@ -58,7 +58,7 @@ class MainMenuFrame(tk.Frame):
     def _menu_card(self, parent, icon, title, subtitle, accent,
                    command, col):
         card = tk.Frame(parent, bg=SURFACE, highlightbackground=BORDER,
-                        highlightthickness=1, cursor="hand2",
+                        highlightthickness=2, cursor="hand2",
                         width=240, height=220)
         card.grid(row=0, column=col, padx=14)
         card.grid_propagate(False)
@@ -76,10 +76,25 @@ class MainMenuFrame(tk.Frame):
         tk.Label(body, text=subtitle, font=font(10),
                  bg=SURFACE, fg=TEXT_MUTED).pack(pady=(2, 0))
 
+        card._hovered = False
+
         def on_enter(_):
-            card.config(highlightbackground=accent, highlightthickness=2)
-        def on_leave(_):
-            card.config(highlightbackground=BORDER, highlightthickness=1)
+            card._hovered = True
+            card.config(highlightbackground=accent)
+
+        def on_leave(event):
+            card.after(10, lambda: _check_leave())
+
+        def _check_leave():
+            try:
+                x, y = card.winfo_pointerxy()
+                cx, cy = card.winfo_rootx(), card.winfo_rooty()
+                cw, ch = card.winfo_width(), card.winfo_height()
+                if not (cx <= x < cx + cw and cy <= y < cy + ch):
+                    card._hovered = False
+                    card.config(highlightbackground=BORDER)
+            except tk.TclError:
+                pass
 
         for w in (card, strip, body, *body.winfo_children()):
             w.bind("<Enter>", on_enter)
