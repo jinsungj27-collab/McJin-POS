@@ -57,8 +57,12 @@ class MainMenuFrame(tk.Frame):
 
     def _menu_card(self, parent, icon, title, subtitle, accent,
                    command, col):
-        card = tk.Frame(parent, bg=SURFACE, highlightbackground=BORDER,
-                        highlightthickness=2, cursor="hand2",
+        # Fixed size card — grid_propagate(False) + fixed width/height
+        # prevents the card from resizing when highlight border changes
+        card = tk.Frame(parent, bg=SURFACE,
+                        highlightbackground=BORDER,
+                        highlightthickness=2,
+                        cursor="hand2",
                         width=240, height=220)
         card.grid(row=0, column=col, padx=14)
         card.grid_propagate(False)
@@ -76,30 +80,38 @@ class MainMenuFrame(tk.Frame):
         tk.Label(body, text=subtitle, font=font(10),
                  bg=SURFACE, fg=TEXT_MUTED).pack(pady=(2, 0))
 
-        card._hovered = False
+        # ── Stable hover: bind only to the card frame, check pointer
+        # position on leave to avoid child-widget flicker.
+        def _is_inside_card():
+            try:
+                px, py = card.winfo_pointerxy()
+                rx, ry = card.winfo_rootx(), card.winfo_rooty()
+                rw, rh = card.winfo_width(), card.winfo_height()
+                return rx <= px < rx + rw and ry <= py < ry + rh
+            except tk.TclError:
+                return False
 
         def on_enter(_):
-            card._hovered = True
             card.config(highlightbackground=accent)
 
-        def on_leave(event):
-            card.after(10, lambda: _check_leave())
+        def on_leave(_):
+            # Small delay so that moving to a child widget doesn't
+            # fire a false leave — re-check pointer is still outside
+            card.after(20, lambda: card.config(
+                highlightbackground=BORDER)
+                if not _is_inside_card() else None)
 
-        def _check_leave():
-            try:
-                x, y = card.winfo_pointerxy()
-                cx, cy = card.winfo_rootx(), card.winfo_rooty()
-                cw, ch = card.winfo_width(), card.winfo_height()
-                if not (cx <= x < cx + cw and cy <= y < cy + ch):
-                    card._hovered = False
-                    card.config(highlightbackground=BORDER)
-            except tk.TclError:
-                pass
+        # Bind only to the card container — NOT to children.
+        # Children inherit cursor but don't trigger their own Enter/Leave.
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
+
+        # Click propagates correctly through all children
+        def _click(e):
+            command()
 
         for w in (card, strip, body, *body.winfo_children()):
-            w.bind("<Enter>", on_enter)
-            w.bind("<Leave>", on_leave)
-            w.bind("<Button-1>", lambda e: command())
+            w.bind("<Button-1>", _click)
 
     def _logout(self):
         if messagebox.askyesno("Log Out", "Are you sure you want to log out?"):
