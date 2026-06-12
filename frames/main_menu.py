@@ -57,10 +57,12 @@ class MainMenuFrame(tk.Frame):
 
     def _menu_card(self, parent, icon, title, subtitle, accent,
                    command, col):
-        # Fixed size card — grid_propagate(False) + fixed width/height
-        # prevents the card from resizing when highlight border changes
+        # Fixed-size card. grid_propagate(False) + constant
+        # highlightthickness=2 guarantees the card NEVER resizes,
+        # whatever the hover state.
         card = tk.Frame(parent, bg=SURFACE,
                         highlightbackground=BORDER,
+                        highlightcolor=BORDER,
                         highlightthickness=2,
                         cursor="hand2",
                         width=240, height=220)
@@ -80,46 +82,41 @@ class MainMenuFrame(tk.Frame):
         tk.Label(body, text=subtitle, font=font(10),
                  bg=SURFACE, fg=TEXT_MUTED).pack(pady=(2, 0))
 
-        # ── Bulletproof hover with NO timers (timers race on spam).
-        # The card receives a <Leave> even when the mouse just moves
-        # onto one of its own child widgets. So on every <Leave> we
-        # synchronously check which widget is actually under the
-        # pointer — if it's the card or any of its descendants, we
-        # ignore the event entirely. A hover flag keeps config() calls
-        # idempotent so rapid events never cause flicker.
+        # ── Rock-solid hover ────────────────────────────────────────
+        # Bind <Enter>/<Leave> ONLY to the card frame (never to the
+        # children). Tkinter still fires <Leave> on the card when the
+        # mouse moves onto a child, so on <Leave> we check the REAL
+        # pointer coordinates against the card's rectangle. Pure
+        # coordinate math — unlike winfo_containing() it can never
+        # return None mid-movement, so it cannot cause flicker.
         state = {"hover": False}
-
-        def _pointer_inside_card(event):
-            w = card.winfo_containing(event.x_root, event.y_root)
-            while w is not None:
-                if w is card:
-                    return True
-                try:
-                    w = w.master
-                except AttributeError:
-                    return False
-            return False
 
         def on_enter(_):
             if not state["hover"]:
                 state["hover"] = True
-                card.config(highlightbackground=accent)
+                card.config(highlightbackground=accent,
+                            highlightcolor=accent)
 
         def on_leave(event):
-            if _pointer_inside_card(event):
-                return  # still within the card — false leave, ignore
+            rx, ry = card.winfo_rootx(), card.winfo_rooty()
+            rw, rh = card.winfo_width(), card.winfo_height()
+            x, y = event.x_root, event.y_root
+            if rx <= x < rx + rw and ry <= y < ry + rh:
+                return  # pointer is still inside the card rectangle
             if state["hover"]:
                 state["hover"] = False
-                card.config(highlightbackground=BORDER)
+                card.config(highlightbackground=BORDER,
+                            highlightcolor=BORDER)
 
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
+
+        # Clicks: bound to every widget so the whole card is clickable,
+        # but these do NOT affect the hover state.
         def _click(_):
             command()
 
-        # Bind to the card AND every child so movement anywhere on the
-        # card keeps the hover state consistent.
         for w in (card, strip, body, *body.winfo_children()):
-            w.bind("<Enter>", on_enter)
-            w.bind("<Leave>", on_leave)
             w.bind("<Button-1>", _click)
 
     def _logout(self):
