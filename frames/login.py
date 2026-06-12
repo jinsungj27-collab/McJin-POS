@@ -130,7 +130,7 @@ class LoginFrame(tk.Frame):
                  ).pack(anchor="w")
         tk.Label(inner, text=meta["desc"], font=font(8),
                  bg=meta["color"] if is_selected else SURFACE,
-                 fg="#FFFFFF99" if is_selected else TEXT_MUTED,
+                 fg="#FFE0B2" if is_selected else TEXT_MUTED,
                  wraplength=130, justify="left"
                  ).pack(anchor="w", pady=(2, 0))
 
